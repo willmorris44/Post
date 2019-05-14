@@ -39,6 +39,47 @@ class PostListViewController: UIViewController, UITableViewDelegate, UITableView
         
     }
     
+    @IBAction func newPostButtonTapped(_ sender: Any) {
+        self.presentNewPostAlert()
+    }
+    
+    func presentNewPostAlert() {
+        let alertController = UIAlertController(title: "New Post", message: nil, preferredStyle: .alert)
+        alertController.addTextField { (username) in
+            username.placeholder = "Username"
+        }
+        alertController.addTextField { (message) in
+            message.placeholder = "Message..."
+        }
+        
+        let postAction = UIAlertAction(title: "Post", style: .default) { [unowned alertController] _ in
+            let username = alertController.textFields?[0]
+            let message = alertController.textFields?[1]
+            
+            guard let usernameText = username?.text, let messageText = message?.text else { return }
+            
+            if usernameText == "" || messageText == "" {
+                self.presentErrorAlert()
+            } else {
+                self.postController.addNewPostWith(username: usernameText, text: messageText, completion: {
+                    self.reloadTableView()
+                })
+            }
+        }
+        
+        alertController.addAction(postAction)
+        present(alertController, animated: true)
+    }
+    
+    func presentErrorAlert() {
+        let alertController = UIAlertController(title: "Error", message: "Cannot have an empty text field", preferredStyle: .alert)
+        
+        let cancelAction = UIAlertAction(title: "If you say so...", style: .cancel)
+        
+        alertController.addAction(cancelAction)
+        present(alertController, animated: true)
+    }
+    
     @objc func refreshControlPulled() {
         postController.fetchPosts {
             DispatchQueue.main.async {
@@ -68,15 +109,17 @@ class PostListViewController: UIViewController, UITableViewDelegate, UITableView
         
         return cell
     }
+}
 
-    /*
-    // MARK: - Navigation
-
-    // In a storyboard-based application, you will often want to do a little preparation before navigation
-    override func prepare(for segue: UIStoryboardSegue, sender: Any?) {
-        // Get the new view controller using segue.destination.
-        // Pass the selected object to the new view controller.
+extension PostListViewController {
+    
+    func tableView(_ tableView: UITableView, willDisplay cell: UITableViewCell, forRowAt indexPath: IndexPath) {
+        
+        if indexPath.row >= (postController.posts.count - 1) {
+            postController.fetchPosts(reset: false) {
+                self.reloadTableView()
+            }
+        }
     }
-    */
-
+    
 }

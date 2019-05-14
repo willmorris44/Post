@@ -14,10 +14,26 @@ class PostController {
     
     var posts: [Post] = []
     
-    func fetchPosts(completion: @escaping () -> Void) {
+    func fetchPosts(reset: Bool = true, completion: @escaping () -> Void) {
+        
+        let queryEndInterval = reset ? Date().timeIntervalSince1970 : posts.last?.queryTimestamp ?? Date().timeIntervalSince1970
+        
         guard let url = baseURL else { completion(); return }
         
-        let getterEndpoint = url.appendingPathExtension("json")
+        let urlParameters = [
+            "orderBy": "\"timestamp\"",
+            "endAt": "\(queryEndInterval)",
+            "limitToLast": "15",
+        ]
+        
+        let queryItems = urlParameters.compactMap( { URLQueryItem(name: $0.key, value: $0.value) } )
+        
+        var urlComponents = URLComponents(url: url, resolvingAgainstBaseURL: true)
+        urlComponents?.queryItems = queryItems
+        
+        guard let newURL = urlComponents?.url else { return }
+        
+        let getterEndpoint = newURL.appendingPathExtension("json")
         
         var request = URLRequest(url: getterEndpoint)
         request.httpBody = nil
@@ -38,7 +54,11 @@ class PostController {
                 let postsDictionary = try jsonDecoder.decode([String:Post].self, from: data)
                 var posts = postsDictionary.compactMap({$0.value})
                 posts.sort(by: { $0.timestamp > $1.timestamp })
-                self.posts = posts
+                if reset == true {
+                    self.posts = posts
+                } else {
+                    self.posts.append(contentsOf: posts)
+                }
                 completion()
                 return
             } catch {
@@ -49,5 +69,39 @@ class PostController {
             
         }
         dataTask.resume()
+    }
+    
+    func addNewPostWith(username: String, text: String, completion: @escaping () -> Void) {
+        let post = Post(text: text, username: username)
+        var postData: Data
+        
+        do {
+            postData = try JSONEncoder().encode(post)
+        } catch {
+            print(error)
+            return
+        }
+        
+        guard let url = baseURL else { return }
+        
+        let postEndpoint = url.appendingPathExtension("json")
+        var request = URLRequest(url: postEndpoint)
+        request.httpBody = postData
+        request.httpMethod = "POST"
+        
+        let dataTask = URLSession.shared.dataTask(with: request) { (data, _, error) in
+            if let error = error {
+                print(error)
+                return
+            }
+            
+            guard let data = data else { return }
+            print(String(data: data, encoding: .utf8)!)
+            self.fetchPosts(completion: {
+                completion()
+            })
+        }
+        dataTask.resume()
+        
     }
 }
